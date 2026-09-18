@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcoReef-Net — Autonomous Coral Health Monitoring System</title>
+  <meta name="description" content="Real-time underwater coral health monitoring using CLAHE contrast enhancement and Faster R-CNN object detection." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════════════════════════ */
+    :root {
+      --bg-body:       #050a0e;
+      --bg-surface:    #0b1218;
+      --bg-card:       #0f1923;
+      --bg-card-hover: #141f2c;
+      --bg-input:      #111b26;
+      --border:        #1a2a3a;
+      --border-accent: #0ff0b3;
+
+      --text-primary:   #e8f0f8;
+      --text-secondary: #7a8fa3;
+      --text-dim:       #4a5e72;
+
+      --accent:        #0ff0b3;
+      --accent-glow:   rgba(15, 240, 179, 0.25);
+      --accent-dim:    rgba(15, 240, 179, 0.08);
+      --amber:         #ffc83d;
+      --red:           #ff3c50;
+      --blue:          #3d9eff;
+      --green:         #0ff0b3;
+
+      --radius-sm:  6px;
+      --radius-md:  12px;
+      --radius-lg:  18px;
+      --radius-xl:  24px;
+
+      --shadow-card: 0 4px 32px rgba(0, 0, 0, 0.45);
+      --shadow-glow: 0 0 40px rgba(15, 240, 179, 0.10);
+
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+      --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════════════════════ */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-body);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Animated gradient background mesh */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(15, 240, 179, 0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(61, 158, 255, 0.03) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(255, 60, 80, 0.02) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TOP NAVIGATION BAR
+    ═══════════════════════════════════════════════════════════ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      height: 64px;
+      background: rgba(11, 18, 24, 0.80);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent) 0%, var(--blue) 100%);
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .brand-name {
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .brand-tag {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .topbar-status {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .status-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 5px 14px;
+      border-radius: 100px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse-dot 2s ease infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       MAIN LAYOUT
+    ═══════════════════════════════════════════════════════════ */
+    .main-container {
+      position: relative;
+      z-index: 1;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px 28px 60px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       HERO SECTION
+    ═══════════════════════════════════════════════════════════ */
+    .hero {
+      text-align: center;
+      padding: 40px 20px 36px;
+    }
+
+    .hero h1 {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      margin-bottom: 14px;
+    }
+
+    .hero h1 .gradient-text {
+      background: linear-gradient(90deg, var(--accent), var(--blue), var(--accent));
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 4s linear infinite;
+    }
+
+    @keyframes shimmer {
+      to { background-position: 200% center; }
+    }
+
+    .hero p {
+      max-width: 680px;
+      margin: 0 auto;
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .hero-badges {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+
+    .badge.teal   { color: var(--accent); border-color: rgba(15, 240, 179, 0.25); }
+    .badge.blue   { color: var(--blue);   border-color: rgba(61, 158, 255, 0.25); }
+    .badge.amber  { color: var(--amber);  border-color: rgba(255, 200, 61, 0.25); }
+
+    /* ═══════════════════════════════════════════════════════════
+       UPLOAD SECTION
+    ═══════════════════════════════════════════════════════════ */
+    .upload-section {
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .card:hover {
+      border-color: rgba(15, 240, 179, 0.15);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .card-title .icon {
+      font-size: 18px;
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    /* Dropzone */
+    .dropzone {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition);
+      background: var(--bg-input);
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      box-shadow: inset 0 0 60px rgba(15, 240, 179, 0.03);
+    }
+
+    .dropzone-icon {
+      font-size: 48px;
+      margin-bottom: 14px;
+      filter: grayscale(0.3);
+    }
+
+    .dropzone h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .dropzone p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-info {
+      margin-top: 16px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 18px;
+      background: rgba(15, 240, 179, 0.06);
+      border: 1px solid rgba(15, 240, 179, 0.15);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .file-info.visible { display: flex; }
+
+    /* Process Button */
+    .btn-process {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      margin-top: 20px;
+      padding: 16px;
+      border: none;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #050a0e;
+      background: linear-gradient(135deg, var(--accent) 0%, #00d4a0 50%, var(--blue) 100%);
+      background-size: 200% auto;
+      cursor: pointer;
+      transition: all var(--transition);
+      box-shadow: 0 4px 24px rgba(15, 240, 179, 0.25);
+    }
+
+    .btn-process:hover {
+      background-position: right center;
+      box-shadow: 0 6px 32px rgba(15, 240, 179, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-process:active {
+      transform: translateY(0);
+    }
+
+    .btn-process:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-process .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(5, 10, 14, 0.3);
+      border-top-color: #050a0e;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    .btn-process.loading .spinner { display: block; }
+    .btn-process.loading .btn-label { display: none; }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       PROGRESS BAR
+    ═══════════════════════════════════════════════════════════ */
+    .progress-container {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .progress-container.visible { display: block; }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      border-radius: 100px;
+      transition: width 0.4s ease;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESULTS GRID
+    ═══════════════════════════════════════════════════════════ */
+    .results-section {
+      display: none;
+      animation: fadeUp 0.6s ease;
+    }
+
+    .results-section.visible { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 16px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Image Grid — 3 columns */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 1080px) {
+      .image-grid { grid-template-columns: 1fr; }
+    }
+
+    .image-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: all var(--transition);
+    }
+
+    .image-card:hover {
+      border-color: rgba(15, 240, 179, 0.2);
+      box-shadow: var(--shadow-glow);
+      transform: translateY(-2px);
+    }
+
+    .image-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .img-stage-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .img-stage-dot.original { background: var(--blue); }
+    .img-stage-dot.clahe    { background: var(--amber); }
+    .img-stage-dot.detect   { background: var(--accent); }
+
+    .image-card-body {
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 260px;
+      background: #080e14;
+    }
+
+    .image-card-body img {
+      width: 100%;
+      height: auto;
+      max-height: 400px;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       ANALYTICS PANEL
+    ═══════════════════════════════════════════════════════════ */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 900px) {
+      .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 520px) {
+      .analytics-grid { grid-template-columns: 1fr; }
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+    }
+
+    .stat-card.total::before    { background: var(--blue); }
+    .stat-card.healthy::before  { background: var(--accent); }
+    .stat-card.bleached::before { background: var(--amber); }
+    .stat-card.dead::before     { background: var(--red); }
+
+    .stat-card:hover {
+      border-color: rgba(15, 240, 179, 0.15);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .stat-card.total   .stat-value { color: var(--blue); }
+    .stat-card.healthy  .stat-value { color: var(--accent); }
+    .stat-card.bleached .stat-value { color: var(--amber); }
+    .stat-card.dead     .stat-value { color: var(--red); }
+
+    .stat-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       HEALTH DISTRIBUTION BARS
+    ═══════════════════════════════════════════════════════════ */
+    .distribution-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 800px) {
+      .distribution-section { grid-template-columns: 1fr; }
+    }
+
+    .dist-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .dist-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dist-body {
+      padding: 20px;
+    }
+
+    .dist-bar-group {
+      margin-bottom: 16px;
+    }
+
+    .dist-bar-group:last-child { margin-bottom: 0; }
+
+    .dist-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .dist-bar-label span:first-child { color: var(--text-secondary); }
+    .dist-bar-label span:last-child  { font-family: var(--font-mono); font-weight: 600; }
+
+    .dist-bar-track {
+      height: 8px;
+      background: var(--bg-input);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+
+    .dist-bar-fill {
+      height: 100%;
+      border-radius: 100px;
+      transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 0%;
+    }
+
+    .dist-bar-fill.healthy  { background: linear-gradient(90deg, var(--accent), #00e6a0); }
+    .dist-bar-fill.bleached { background: linear-gradient(90deg, var(--amber), #ffdb70); }
+    .dist-bar-fill.dead     { background: linear-gradient(90deg, var(--red), #ff6b7a); }
+
+    /* ═══════════════════════════════════════════════════════════
+       DETECTIONS TABLE
+    ═══════════════════════════════════════════════════════════ */
+    .detections-table-wrap {
+      overflow-x: auto;
+    }
+
+    .detections-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .detections-table thead th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .detections-table tbody tr {
+      border-bottom: 1px solid rgba(26, 42, 58, 0.5);
+      transition: background var(--transition);
+    }
+
+    .detections-table tbody tr:hover {
+      background: rgba(15, 240, 179, 0.03);
+    }
+
+    .detections-table tbody td {
+      padding: 12px 16px;
+      color: var(--text-secondary);
+    }
+
+    .label-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .label-chip.healthy  { color: var(--accent); background: rgba(15, 240, 179, 0.10); }
+    .label-chip.bleached { color: var(--amber);  background: rgba(255, 200, 61, 0.10); }
+    .label-chip.dead     { color: var(--red);    background: rgba(255, 60, 80, 0.10); }
+
+    .mono { font-family: var(--font-mono); font-size: 12px; }
+
+    /* ═══════════════════════════════════════════════════════════
+       TELEMETRY LOG
+    ═══════════════════════════════════════════════════════════ */
+    .telemetry-section {
+      margin-top: 28px;
+    }
+
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .telem-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    .telem-key {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .telem-val {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════════════════════════ */
+    .footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 12px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       ERROR TOAST
+    ═══════════════════════════════════════════════════════════ */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      z-index: 9999;
+      padding: 14px 24px;
+      background: #1c0a0a;
+      border: 1px solid rgba(255, 60, 80, 0.3);
+      color: var(--red);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 32px rgba(255, 60, 80, 0.15);
+      transform: translateY(120px);
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .toast.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       SCROLLBAR
+    ═══════════════════════════════════════════════════════════ */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TOP BAR
+  ═══════════════════════════════════════════════════════ -->
+  <nav class="topbar" id="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon">🪸</div>
+      <div>
+        <div class="brand-name">EcoReef-Net</div>
+        <div class="brand-tag">Coral Health Monitoring</div>
+      </div>
+    </div>
+    <div class="topbar-status">
+      <div class="status-chip">
+        <span class="status-dot"></span>
+        <span id="statusLabel">System Ready</span>
+      </div>
+      <div class="status-chip" style="font-family: var(--font-mono);" id="deviceChip">
+        ⚡ CPU
+      </div>
+    </div>
+  </nav>
+
+  <main class="main-container">
+
+    <!-- ═══════════════════════════════════════════════════════
+         HERO
+    ═══════════════════════════════════════════════════════ -->
+    <section class="hero">
+      <h1>
+        Autonomous <span class="gradient-text">Coral Health</span><br />
+        Monitoring System
+      </h1>
+      <p>
+        Dual-stage underwater image analysis pipeline combining CLAHE contrast enhancement
+        with Faster R-CNN deep learning inference for real-time coral reef health classification.
+      </p>
+      <div class="hero-badges">
+        <span class="badge teal">🔬 CLAHE Enhancement</span>
+        <span class="badge blue">🧠 Faster R-CNN · ResNet-50-FPN</span>
+        <span class="badge amber">📊 Real-Time Analytics</span>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         UPLOAD CARD
+    ═══════════════════════════════════════════════════════ -->
+    <section class="upload-section">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">📤</span>
+            Image Upload &amp; Processing Control
+          </div>
+          <div class="status-chip" style="font-size: 11px;" id="formatChip">
+            PNG · JPG · BMP · TIFF
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="dropzone" id="dropzone">
+            <div class="dropzone-icon">🌊</div>
+            <h3>Drop underwater image here</h3>
+            <p>or click to browse files — max 32 MB</p>
+            <input type="file" accept="image/*" id="fileInput" />
+          </div>
+
+          <div class="file-info" id="fileInfo">
+            <span>📎</span>
+            <span id="fileName">—</span>
+            <span id="fileSize" style="color: var(--text-dim);">(—)</span>
+          </div>
+
+          <!-- Progress -->
+          <div class="progress-container" id="progressContainer">
+            <div class="progress-label">
+              <span id="progressStage">Preprocessing…</span>
+              <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+          </div>
+
+          <button class="btn-process" id="processBtn" disabled>
+            <span class="spinner"></span>
+            <span class="btn-label">⚡ Run Dual-Stage Analysis Pipeline</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         RESULTS (hidden until processing completes)
+    ═══════════════════════════════════════════════════════ -->
+    <div class="results-section" id="resultsSection">
+
+      <!-- Image Comparison Grid -->
+      <div class="section-label">🖼️ Pipeline Visualization</div>
+      <div class="image-grid">
+        <!-- Original -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="img-stage-dot original"></span>
+            Stage 0 — Raw Upload
+          </div>
+          <div class="image-card-body" id="originalFrame">
+            <img id="originalImg" src="" alt="Original underwater image" />
+          </div>
+        </div>
+        <!-- CLAHE -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="img-stage-dot clahe"></span>
+            Stage 1 — CLAHE Enhanced
+          </div>
+          <div class="image-card-body" id="claheFrame">
+            <img id="claheImg" src="" alt="CLAHE contrast-enhanced image" />
+          </div>
+        </div>
+        <!-- Detection -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="img-stage-dot detect"></span>
+            Stage 2 — Coral Detection
+          </div>
+          <div class="image-card-body" id="detectFrame">
+            <img id="detectImg" src="" alt="Faster R-CNN detection results" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics Cards -->
+      <div class="section-label">📊 Coral Health Analytics</div>
+      <div class="analytics-grid">
+        <div class="stat-card total">
+          <div class="stat-label">Total Corals</div>
+          <div class="stat-value" id="statTotal">—</div>
+          <div class="stat-sub">Detected regions</div>
+        </div>
+        <div class="stat-card healthy">
+          <div class="stat-label">Healthy</div>
+          <div class="stat-value" id="statHealthy">—</div>
+          <div class="stat-sub" id="statHealthyPct">—</div>
+        </div>
+        <div class="stat-card bleached">
+          <div class="stat-label">Bleached</div>
+          <div class="stat-value" id="statBleached">—</div>
+          <div class="stat-sub" id="statBleachedPct">—</div>
+        </div>
+        <div class="stat-card dead">
+          <div class="stat-label">Dead</div>
+          <div class="stat-value" id="statDead">—</div>
+          <div class="stat-sub" id="statDeadPct">—</div>
+        </div>
+      </div>
+
+      <!-- Health Distribution + Detection Log -->
+      <div class="distribution-section">
+        <!-- Bar Chart -->
+        <div class="dist-card">
+          <div class="dist-header">
+            <span>📈</span> Health Distribution
+          </div>
+          <div class="dist-body">
+            <div class="dist-bar-group">
+              <div class="dist-bar-label">
+                <span>🟢 Healthy Coral</span>
+                <span id="barHealthyVal">0%</span>
+              </div>
+              <div class="dist-bar-track">
+                <div class="dist-bar-fill healthy" id="barHealthy"></div>
+              </div>
+            </div>
+            <div class="dist-bar-group">
+              <div class="dist-bar-label">
+                <span>🟡 Bleached Coral</span>
+                <span id="barBleachedVal">0%</span>
+              </div>
+              <div class="dist-bar-track">
+                <div class="dist-bar-fill bleached" id="barBleached"></div>
+              </div>
+            </div>
+            <div class="dist-bar-group">
+              <div class="dist-bar-label">
+                <span>🔴 Dead Coral</span>
+                <span id="barDeadVal">0%</span>
+              </div>
+              <div class="dist-bar-track">
+                <div class="dist-bar-fill dead" id="barDead"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detection Table -->
+        <div class="dist-card">
+          <div class="dist-header">
+            <span>🔍</span> Detection Log
+            <span style="margin-left:auto; font-size:11px; color:var(--text-dim);" id="detCountLabel">0 detections</span>
+          </div>
+          <div class="dist-body" style="padding: 0;">
+            <div class="detections-table-wrap" style="max-height: 280px; overflow-y: auto;">
+              <table class="detections-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Classification</th>
+                    <th>Confidence</th>
+                    <th>Bounding Box</th>
+                  </tr>
+                </thead>
+                <tbody id="detTableBody">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telemetry -->
+      <div class="telemetry-section">
+        <div class="section-label">⚡ Inference Telemetry</div>
+        <div class="card">
+          <div class="card-body">
+            <div class="telemetry-grid" id="telemetryGrid">
+              <!-- filled by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div> <!-- /results-section -->
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    EcoReef-Net v1.0 — Powered by <a href="#">PyTorch</a> · <a href="#">OpenCV</a> · <a href="#">Flask</a><br/>
+    Dual-stage CLAHE + Faster R-CNN inference pipeline for autonomous coral reef analysis.
+  </footer>
+
+  <!-- Error Toast -->
+  <div class="toast" id="errorToast"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       JAVASCRIPT ENGINE
+  ═══════════════════════════════════════════════════════════ -->
+  <script>
+    (() => {
+      "use strict";
+
+      // ── DOM References ────────────────────────────────────
+      const $ = (sel) => document.querySelector(sel);
+      const dropzone     = $("#dropzone");
+      const fileInput     = $("#fileInput");
+      const fileInfo      = $("#fileInfo");
+      const fileName      = $("#fileName");
+      const fileSize      = $("#fileSize");
+      const processBtn    = $("#processBtn");
+      const progressCont  = $("#progressContainer");
+      const progressStage = $("#progressStage");
+      const progressPct   = $("#progressPercent");
+      const progressFill  = $("#progressFill");
+      const resultsSection = $("#resultsSection");
+      const statusLabel   = $("#statusLabel");
+      const errorToast    = $("#errorToast");
+
+      let selectedFile = null;
+
+      // ── File Selection ────────────────────────────────────
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+          selectFile(e.target.files[0]);
+        }
+      });
+
+      // Drag & drop
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("dragover");
+      });
+
+      dropzone.addEventListener("dragleave", () => {
+        dropzone.classList.remove("dragover");
+      });
+
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+        if (e.dataTransfer.files.length > 0) {
+          selectFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      function selectFile(file) {
+        selectedFile = file;
+        fileName.textContent = file.name;
+        fileSize.textContent = `(${formatBytes(file.size)})`;
+        fileInfo.classList.add("visible");
+        processBtn.disabled = false;
+      }
+
+      function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / 1048576).toFixed(2) + " MB";
+      }
+
+      // ── Progress Simulation ────────────────────────────────
+      function showProgress(stage, pct) {
+        progressCont.classList.add("visible");
+        progressStage.textContent = stage;
+        progressPct.textContent = pct + "%";
+        progressFill.style.width = pct + "%";
+      }
+
+      function hideProgress() {
+        progressCont.classList.remove("visible");
+        progressFill.style.width = "0%";
+      }
+
+      // ── Toast ──────────────────────────────────────────────
+      function showToast(msg) {
+        errorToast.textContent = "⚠️ " + msg;
+        errorToast.classList.add("visible");
+        setTimeout(() => errorToast.classList.remove("visible"), 5000);
+      }
+
+      // ── Process Pipeline ──────────────────────────────────
+      processBtn.addEventListener("click", async () => {
+        if (!selectedFile) return;
+
+        processBtn.disabled = true;
+        processBtn.classList.add("loading");
+        resultsSection.classList.remove("visible");
+        statusLabel.textContent = "Processing…";
+
+        showProgress("Uploading image…", 10);
+
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+
+        try {
+          showProgress("Running CLAHE enhancement…", 30);
+
+          const response = await fetch("/process", {
+            method: "POST",
+            body: formData,
+          });
+
+          showProgress("Running Faster R-CNN inference…", 70);
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || "Server error");
+          }
+
+          showProgress("Rendering results…", 90);
+
+          const data = await response.json();
+
+          showProgress("Complete", 100);
+
+          setTimeout(() => {
+            hideProgress();
+            renderResults(data);
+            processBtn.disabled = false;
+            processBtn.classList.remove("loading");
+            statusLabel.textContent = "Analysis Complete";
+          }, 400);
+
+        } catch (err) {
+          hideProgress();
+          showToast(err.message);
+          processBtn.disabled = false;
+          processBtn.classList.remove("loading");
+          statusLabel.textContent = "Error — Retry";
+        }
+      });
+
+      // ── Render Results ─────────────────────────────────────
+      function renderResults(data) {
+        // Images
+        $("#originalImg").src = data.original_image;
+        $("#claheImg").src    = data.clahe_image;
+        $("#detectImg").src   = data.annotated_image;
+
+        // Analytics
+        const a = data.analytics;
+        $("#statTotal").textContent    = a.total_corals;
+        $("#statHealthy").textContent  = a.counts["Healthy Coral"];
+        $("#statBleached").textContent = a.counts["Bleached Coral"];
+        $("#statDead").textContent     = a.counts["Dead Coral"];
+
+        $("#statHealthyPct").textContent  = a.percentages["Healthy Coral"] + "%";
+        $("#statBleachedPct").textContent = a.percentages["Bleached Coral"] + "%";
+        $("#statDeadPct").textContent     = a.percentages["Dead Coral"] + "%";
+
+        // Distribution bars (animate in)
+        setTimeout(() => {
+          $("#barHealthy").style.width  = a.percentages["Healthy Coral"] + "%";
+          $("#barBleached").style.width = a.percentages["Bleached Coral"] + "%";
+          $("#barDead").style.width     = a.percentages["Dead Coral"] + "%";
+
+          $("#barHealthyVal").textContent  = a.percentages["Healthy Coral"] + "%";
+          $("#barBleachedVal").textContent = a.percentages["Bleached Coral"] + "%";
+          $("#barDeadVal").textContent     = a.percentages["Dead Coral"] + "%";
+        }, 100);
+
+        // Detection table
+        const tbody = $("#detTableBody");
+        tbody.innerHTML = "";
+        $("#detCountLabel").textContent = data.detections.length + " detections";
+
+        data.detections.forEach((det, i) => {
+          const labelClass = det.label.includes("Healthy")  ? "healthy"  :
+                             det.label.includes("Bleached") ? "bleached" : "dead";
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="mono">${i + 1}</td>
+            <td><span class="label-chip ${labelClass}">${det.label}</span></td>
+            <td class="mono">${(det.score * 100).toFixed(1)}%</td>
+            <td class="mono">[${det.box.join(", ")}]</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Telemetry
+        const t = data.telemetry;
+        const grid = $("#telemetryGrid");
+        grid.innerHTML = "";
+
+        const telemetryItems = [
+          ["Model",      t.model],
+          ["Device",     t.device.toUpperCase()],
+          ["Threshold",  (t.confidence_threshold * 100) + "%"],
+          ["Decode",     t.decode_ms + " ms"],
+          ["CLAHE",      t.clahe_ms + " ms"],
+          ["Inference",  t.inference_ms + " ms"],
+          ["Total",      t.total_ms + " ms"],
+          ["Resolution", data.analytics.image_dimensions.width + "×" + data.analytics.image_dimensions.height],
+        ];
+
+        telemetryItems.forEach(([key, val]) => {
+          const div = document.createElement("div");
+          div.className = "telem-item";
+          div.innerHTML = `<span class="telem-key">${key}</span><span class="telem-val">${val}</span>`;
+          grid.appendChild(div);
+        });
+
+        // Update device chip
+        $("#deviceChip").textContent = "⚡ " + t.device.toUpperCase();
+
+        // Show results
+        resultsSection.classList.add("visible");
+        resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+
+dataset/
+checkpoints/
+
+node_modules/
+.env
+.env.*
+
+.vscode/
+/frontend/dist/

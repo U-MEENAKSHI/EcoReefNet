@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-ocean-900 text-slate-100 font-sans;
+    background-image: 
+      radial-gradient(circle at 15% 50%, rgba(0, 240, 255, 0.03), transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(32, 201, 151, 0.03), transparent 25%);
+    background-attachment: fixed;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-white;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-ocean-800/60 backdrop-blur-md border border-ocean-700/50 rounded-2xl shadow-xl shadow-black/20;
+  }
+  
+  .glass-nav {
+    @apply bg-ocean-900/80 backdrop-blur-lg border-b border-ocean-700/50;
+  }
+  
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-accent-cyan to-accent-teal text-ocean-900 font-semibold rounded-xl hover:shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all duration-300 transform hover:-translate-y-0.5;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-ocean-800/80 border border-ocean-700 text-slate-200 font-semibold rounded-xl hover:bg-ocean-700/80 transition-all duration-300;
+  }
+}
