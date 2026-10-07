@@ -63,13 +63,13 @@ const UploadAnalysis = () => {
       console.log("Sending images to Flask...");
       console.log("Number of images:", selectedFiles.length);
 
+      // NOTE: Do NOT set Content-Type manually for FormData.
+      // axios auto-sets 'multipart/form-data; boundary=...' with the correct boundary.
+      // Manually setting it strips the boundary, causing Flask to reject the request.
       const response = await axios.post(
         `${API_BASE}/process-collection`,
         formData,
         {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
           timeout: 120000,
         }
       );
@@ -89,9 +89,16 @@ const UploadAnalysis = () => {
       console.error("Error response:", error.response?.data);
       console.error("Error status:", error.response?.status);
 
-      alert(
-        `Error processing image collection.\n\n${error.response?.data?.error || error.message}`
-      );
+      let userMessage = error.message;
+      if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error')) {
+        userMessage = 'Cannot connect to the Flask backend. Make sure it is running on port 5000.';
+      } else if (error.response?.data?.error) {
+        userMessage = error.response.data.error;
+      } else if (error.code === 'ECONNABORTED') {
+        userMessage = 'Request timed out. Try uploading fewer or smaller images.';
+      }
+
+      alert(`Error processing image collection.\n\n${userMessage}`);
 
       setProcessStep(0);
     } finally {
